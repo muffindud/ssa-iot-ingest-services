@@ -33,6 +33,12 @@ services:
       - USER_AUTH_URL=http://user-auth:${USER_AUTH_PORT}
       - USER_ACCESS_URL=http://user-access:${USER_ACCESS_PORT}
 
+  eclipse:
+    image: eclipse-mosquitto
+    ports:
+      - ${ECLIPSE_MQTT_PORT}:1883
+      - ${ECLIPSE_WS_PORT}:9001
+
   iot-ingest:
     build: ./iot-ingest-service
     deploy:
@@ -41,6 +47,9 @@ services:
           cpus: '1'
           memory: 1G
     environment:
+      - ECLIPSE_MQTT_BROKER=eclipse
+      - ECLIPSE_MQTT_PORT=${ECLIPSE_MQTT_PORT}
+      - ECLIPSE_WS_PORT=${ECLIPSE_WS_PORT}
       - MONGO_URI=mongodb://mongo:${MONGO_PORT}/${MONGO_INITDB_DATABASE}
       - DEVICE_JWT_SECRET=${DEVICE_JWT_SECRET}
 
