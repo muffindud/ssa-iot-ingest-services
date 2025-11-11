@@ -1,5 +1,3 @@
-CREATE DATABASE user_data;
-
 \c user_data;
 
 CREATE TABLE devices (
