@@ -87,16 +87,20 @@ services:
 
   user-access:
     build: ./user-access-service
+    ports:
+      - ${USER_ACCESS_PORT}:${USER_ACCESS_PORT}
     deploy:
       resources:
         limits:
           cpus: '1'
           memory: 1G
     environment:
-      - PORT=${USER_ACCESS_PORT}
+      - FLASK_RUN_PORT=${USER_ACCESS_PORT}
+      - FLASK_RUN_HOST=0.0.0.0
       - USER_JWT_SECRET=${USER_JWT_SECRET}
       - POSTGRES_URI=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
       - MONGO_URI=mongodb://mongo:${MONGO_PORT}/${MONGO_INITDB_DATABASE}
+      - MONGO_DB_NAME=${MONGO_INITDB_DATABASE}
 
 volumes:
   db_data:
