@@ -44,6 +44,8 @@ services:
     ports:
       - ${ECLIPSE_MQTT_PORT}:1883
       - ${ECLIPSE_WS_PORT}:9001
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
 
   iot-ingest:
     build: ./iot-ingest-service
@@ -67,8 +69,10 @@ services:
           cpus: '1'
           memory: 512M
     environment:
-      - PORT=${IOT_AUTH_PORT}
+      - FLASK_RUN_HOST=0.0.0.0
+      - FLASK_RUN_PORT=${IOT_AUTH_PORT}
       - DEVICE_JWT_SECRET=${DEVICE_JWT_SECRET}
+      - POSTGRES_URI=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
 
   user-auth:
     build: ./user-auth-service
