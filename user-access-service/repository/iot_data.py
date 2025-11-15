@@ -1,5 +1,7 @@
 from json import loads
 
+from pymongo import DESCENDING
+
 from services.postgres import Database
 from services.mongo import DB
 
@@ -11,7 +13,7 @@ mongo_db = DB
 def get_data(device_id: int, page: int = 1, size: int = 10) -> list[dict]:
     collection = mongo_db['iot_data']
     skip = (page - 1) * size
-    with collection.find({'device_id': device_id}, {"data": 1, "_id": 0}).skip(skip).limit(size) as cursor:
+    with collection.find({'device_id': device_id}, {"data": 1, "_id": 0}).sort("_id", DESCENDING).skip(skip).limit(size) as cursor:
         data = [doc["data"] for doc in cursor]
     return data
 

@@ -27,11 +27,15 @@ def connect_mqtt() -> mqtt.Client:
 def subscribe(client: mqtt.Client) -> None:
     def on_message(client, userdata, msg) -> None:
         try:
-            json = loads(msg.payload.decode())
+            message = msg.payload.decode()
+            json = loads(message)
             token = json.get("token")
             data = json.get("data")
 
-            identity = jwt_decode(token, DEVICE_JWT_SECRET)
+            for key in data:
+                data[key] = float(data[key])
+
+            identity = jwt_decode(token, DEVICE_JWT_SECRET, algorithms=["HS256"], options={"verify_signature": False}).get("sub")
 
             if identity.get("device_id") is None or identity.get("role") != "device":
                 print("Invalid token: missing device_id or incorrect role")
