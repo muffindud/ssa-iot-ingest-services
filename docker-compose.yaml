@@ -63,6 +63,8 @@ services:
 
   iot-auth:
     build: ./iot-auth-service
+    ports:
+      - ${IOT_AUTH_PORT}:${IOT_AUTH_PORT}
     deploy:
       resources:
         limits:
