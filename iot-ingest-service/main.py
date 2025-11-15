@@ -1,11 +1,16 @@
 from os import getenv
 from random import randint
+from json import loads
 
+from jwt import decode as jwt_decode
 from paho.mqtt import client as mqtt
+
+from repository.iot_data import publish_data
 
 
 BROKER = getenv("ECLIPSE_MQTT_BROKER", "localhost")
 PORT = int(getenv("ECLIPSE_MQTT_PORT", 1883))
+DEVICE_JWT_SECRET = getenv("DEVICE_JWT_SECRET")
 TOPIC = "$share/group/iot/ingest"
 
 
@@ -21,7 +26,24 @@ def connect_mqtt() -> mqtt.Client:
 
 def subscribe(client: mqtt.Client) -> None:
     def on_message(client, userdata, msg) -> None:
-        print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
+        try:
+            json = loads(msg.payload.decode())
+            token = json.get("token")
+            data = json.get("data")
+
+            identity = jwt_decode(token, DEVICE_JWT_SECRET)
+
+            if identity.get("device_id") is None or identity.get("role") != "device":
+                print("Invalid token: missing device_id or incorrect role")
+                return
+
+            device_id = identity["device_id"]
+
+            publish_data(device_id, data)
+
+        except Exception as e:
+            print(f"Error decoding JSON: {e}")
+            return
 
     client.subscribe(TOPIC)
     client.on_message = on_message
