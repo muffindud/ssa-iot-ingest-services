@@ -9,6 +9,8 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
       - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE}
+    networks:
+      - ssa-iot-ingest-services-network
 
   postgres:
     image: postgres:18-alpine
@@ -26,20 +28,25 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/18/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ssa-iot-ingest-services-network
 
-  # gateway:
-  #   ports:
-  #     - ${GATEWAY_PORT}:80
-  #   build: ./gateway
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: '0.5'
-  #         memory: 1G
-  #   environment:
-  #     - PORT=${GATEWAY_PORT}
-  #     - USER_AUTH_URL=http://user-auth:${USER_AUTH_PORT}
-  #     - USER_ACCESS_URL=http://user-access:${USER_ACCESS_PORT}
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--providers.docker.network=ssa-iot-ingest-services-network"
+      - "--api.dashboard=true"
+    ports:
+      - "8080:80"
+      - "8081:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - ssa-iot-ingest-services-network
 
   eclipse:
     image: eclipse-mosquitto
@@ -48,6 +55,8 @@ services:
       - ${ECLIPSE_WS_PORT}:9001
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - ssa-iot-ingest-services-network
 
   iot-ingest:
     build: ./iot-ingest-service
@@ -65,11 +74,13 @@ services:
       - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017
       - MONGO_DB_NAME=${MONGO_INITDB_DATABASE}
       - DEVICE_JWT_SECRET=${DEVICE_JWT_SECRET}
+    networks:
+      - ssa-iot-ingest-services-network
 
   iot-auth:
     build: ./iot-auth-service
     ports:
-      - ${IOT_AUTH_PORT}:${IOT_AUTH_PORT}
+      - ${IOT_AUTH_PORT}
     deploy:
       resources:
         limits:
@@ -78,16 +89,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.iot-auth.rule=PathPrefix(`/iot/auth/`)"
+      - "traefik.http.services.iot-auth.loadbalancer.server.port=${IOT_AUTH_PORT}"
+      - "traefik.http.routers.iot-auth.entrypoints=web"
     environment:
       - FLASK_RUN_HOST=0.0.0.0
       - FLASK_RUN_PORT=${IOT_AUTH_PORT}
       - DEVICE_JWT_SECRET=${DEVICE_JWT_SECRET}
       - POSTGRES_URI=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
+    networks:
+      - ssa-iot-ingest-services-network
 
   user-auth:
     build: ./user-auth-service
     ports:
-      - ${USER_AUTH_PORT}:${USER_AUTH_PORT}
+      - ${USER_AUTH_PORT}
     deploy:
       resources:
         limits:
@@ -96,16 +114,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.user-auth.rule=PathPrefix(`/user/auth/`)"
+      - "traefik.http.services.user-auth.loadbalancer.server.port=${USER_AUTH_PORT}"
+      - "traefik.http.routers.user-auth.entrypoints=web"
     environment:
       - FLASK_RUN_PORT=${USER_AUTH_PORT}
       - FLASK_RUN_HOST=0.0.0.0
       - USER_JWT_SECRET=${USER_JWT_SECRET}
       - POSTGRES_URI=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
+    networks:
+      - ssa-iot-ingest-services-network
 
   user-access:
     build: ./user-access-service
     ports:
-      - ${USER_ACCESS_PORT}:${USER_ACCESS_PORT}
+      - ${USER_ACCESS_PORT}
     deploy:
       resources:
         limits:
@@ -116,6 +141,11 @@ services:
         condition: service_healthy
       mongo:
         condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.user-access.rule=PathPrefix(`/user/access/`)"
+      - "traefik.http.services.user-access.loadbalancer.server.port=${USER_ACCESS_PORT}"
+      - "traefik.http.routers.user-access.entrypoints=web"
     environment:
       - FLASK_RUN_PORT=${USER_ACCESS_PORT}
       - FLASK_RUN_HOST=0.0.0.0
@@ -123,7 +153,13 @@ services:
       - POSTGRES_URI=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
       - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017
       - MONGO_DB_NAME=${MONGO_INITDB_DATABASE}
+    networks:
+      - ssa-iot-ingest-services-network
 
 volumes:
   db_data:
   mongo_data:
+
+networks:
+  ssa-iot-ingest-services-network:
+    driver: bridge
